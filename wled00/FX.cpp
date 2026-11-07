@@ -7822,6 +7822,55 @@ uint8_t WS2812FX::addEffect(uint8_t id, mode_ptr mode_fn, const char *mode_name)
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// Hoermann Boot (Expodium custom effect)
+// Startfarbe (Farbslot 3) steht, eine Front in Farbe 1 laeuft mit weicher
+// Kante ueber die Strecke, Farbe 2 folgt mit Abstand, optional kehrt danach
+// die Startfarbe zurueck. Laeuft einmal ab dem Laden des Effekts.
+//   Tempo        : Dauer eines Durchlaufs (rechts = schneller)
+//   Abstand      : Abstand Folgefarbe hinter Front (0..50 % der Laenge)
+//   Weiche Kante : Breite des Farbuebergangs (0..25 % der Laenge)
+//   Abstand Ende : Abstand der Rueckkehr-Farbe (0..100 % der Laenge)
+//   Option 1     : am Ende wieder Startfarbe
+/////////////////////////////////////////////////////////////////////////////
+static inline float hb_clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
+
+uint16_t mode_hoermann_boot(void) {
+  const unsigned len = SEGLEN;
+  const uint32_t cFront = SEGCOLOR(0);
+  const uint32_t cFolge = SEGCOLOR(1);
+  const uint32_t cStart = SEGCOLOR(2);
+  if (len < 2) { SEGMENT.fill(cStart); return FRAMETIME; }
+  if (SEGENV.call == 0) SEGENV.step = strip.now;
+
+  const float t     = (float)(strip.now - SEGENV.step);
+  const float dur   = 1000.0f + (255 - SEGMENT.speed) * 200.0f;     // ms pro Durchlauf
+  const float edge  = 1.0f + SEGMENT.custom1 * (float)len / 1024.0f; // Pixel
+  const float gap1  = SEGMENT.intensity * (float)len / 512.0f;       // Pixel
+  const float gap2  = SEGMENT.custom2 * (float)len / 256.0f;         // Pixel
+  const bool  back  = SEGMENT.check1;
+
+  const float fb = t * (float)len / dur;   // Position Front (Farbe 1)
+  const float fo = fb - gap1 - edge;       // Position Folgefarbe (Farbe 2)
+  const float fg = fo - gap2 - edge;       // Position Rueckkehr (Farbe 3)
+
+  for (unsigned i = 0; i < len; i++) {
+    const float x = (float)i + 0.5f;
+    uint32_t c = cStart;
+    float a = hb_clamp01((fb - x) / edge);
+    if (a > 0.0f) c = color_blend(c, cFront, (uint16_t)(a * 255.0f + 0.5f));
+    float b = hb_clamp01((fo - x) / edge);
+    if (b > 0.0f) c = color_blend(c, cFolge, (uint16_t)(b * 255.0f + 0.5f));
+    if (back) {
+      float g = hb_clamp01((fg - x) / edge);
+      if (g > 0.0f) c = color_blend(c, cStart, (uint16_t)(g * 255.0f + 0.5f));
+    }
+    SEGMENT.setPixelColor(i, c);
+  }
+  return FRAMETIME;
+}
+static const char _data_FX_MODE_HOERMANN_BOOT[] PROGMEM = "Hoermann Boot@Tempo,Abstand,Weiche Kante,Abstand Ende,,Zurueck zur Startfarbe;Front,Folge,Start/Ende;;1;sx=128,ix=64,c1=64,c2=128,o1=1";
+
 void WS2812FX::setupEffectData() {
   // Solid must be first! (assuming vector is empty upon call to setup)
   _mode.push_back(&mode_static);
@@ -8038,5 +8087,7 @@ void WS2812FX::setupEffectData() {
 
   addEffect(FX_MODE_2DAKEMI, &mode_2DAkemi, _data_FX_MODE_2DAKEMI); // audio
 #endif // WLED_DISABLE_2D
+
+  addEffect(187, &mode_hoermann_boot, _data_FX_MODE_HOERMANN_BOOT); // Expodium custom
 
 }
