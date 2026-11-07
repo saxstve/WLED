@@ -7831,7 +7831,8 @@ uint8_t WS2812FX::addEffect(uint8_t id, mode_ptr mode_fn, const char *mode_name)
 //   Abstand      : Abstand Folgefarbe hinter Front (0..50 % der Laenge)
 //   Weiche Kante : Breite des Farbuebergangs (0..25 % der Laenge)
 //   Abstand Ende : Abstand der Rueckkehr-Farbe (0..100 % der Laenge)
-//   Option 1     : am Ende wieder Startfarbe
+//   Option 1     : am Ende Farbe 3 (Ende)
+//   Option 2     : Start in Weiss statt Farbe 3
 /////////////////////////////////////////////////////////////////////////////
 static inline float hb_clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
@@ -7839,8 +7840,10 @@ uint16_t mode_hoermann_boot(void) {
   const unsigned len = SEGLEN;
   const uint32_t cFront = SEGCOLOR(0);
   const uint32_t cFolge = SEGCOLOR(1);
-  const uint32_t cStart = SEGCOLOR(2);
-  if (len < 2) { SEGMENT.fill(cStart); return FRAMETIME; }
+  const uint32_t cEnde  = SEGCOLOR(2);
+  // Option 2: Start in reinem Weiss (nur W-Kanal), sonst Start = Farbe 3
+  const uint32_t cStart = SEGMENT.check2 ? RGBW32(0,0,0,255) : cEnde;
+  if (len < 2) { SEGMENT.fill(cEnde); return FRAMETIME; }
   if (SEGENV.call == 0) SEGENV.step = strip.now;
 
   const float t     = (float)(strip.now - SEGENV.step);
@@ -7863,13 +7866,13 @@ uint16_t mode_hoermann_boot(void) {
     if (b > 0.0f) c = color_blend(c, cFolge, (uint16_t)(b * 255.0f + 0.5f));
     if (back) {
       float g = hb_clamp01((fg - x) / edge);
-      if (g > 0.0f) c = color_blend(c, cStart, (uint16_t)(g * 255.0f + 0.5f));
+      if (g > 0.0f) c = color_blend(c, cEnde, (uint16_t)(g * 255.0f + 0.5f));
     }
     SEGMENT.setPixelColor(i, c);
   }
   return FRAMETIME;
 }
-static const char _data_FX_MODE_HOERMANN_BOOT[] PROGMEM = "Hoermann Boot@Tempo,Abstand,Weiche Kante,Abstand Ende,,Zurueck zur Startfarbe;Front,Folge,Start/Ende;;1;sx=128,ix=64,c1=64,c2=128,o1=1";
+static const char _data_FX_MODE_HOERMANN_BOOT[] PROGMEM = "Hoermann Boot@Tempo,Abstand,Weiche Kante,Abstand Ende,,Ende in Farbe 3,Start in Weiss;Front,Folge,Ende;;1;sx=128,ix=64,c1=64,c2=128,o1=1,o2=1";
 
 void WS2812FX::setupEffectData() {
   // Solid must be first! (assuming vector is empty upon call to setup)
