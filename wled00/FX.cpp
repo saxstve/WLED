@@ -7874,6 +7874,23 @@ uint16_t mode_hoermann_boot(void) {
 }
 static const char _data_FX_MODE_HOERMANN_BOOT[] PROGMEM = "Hoermann Boot@Tempo,Abstand,Weiche Kante,Abstand Ende,,Ende in Farbe 3,Start in Weiss;Front,Folge,Ende;;1;sx=128,ix=64,c1=64,c2=128,o1=1,o2=1";
 
+/////////////////////////////////////////////////////////////////////////////
+// RGBW Test (Expodium): ganze Leiste nacheinander Rot, Gruen, Blau, Weiss
+//   Tempo : Dauer pro Farbe, 0 = 10 s ... 128 = 5 s ... ab 230 = 1 s
+//   Option 1 : zusaetzlich alle 4 Kanaele gleichzeitig als 5. Schritt
+/////////////////////////////////////////////////////////////////////////////
+uint16_t mode_rgbw_test(void) {
+  static const uint32_t cols[5] = { RGBW32(255,0,0,0), RGBW32(0,255,0,0), RGBW32(0,0,255,0), RGBW32(0,0,0,255), RGBW32(255,255,255,255) };
+  if (SEGENV.call == 0) SEGENV.step = strip.now;
+  uint32_t dur = (256 - (uint32_t)SEGMENT.speed) * 39;           // 0 -> 10 s, 128 -> 5 s
+  if (dur < 1000) dur = 1000;                                      // mindestens 1 s pro Farbe
+  const unsigned n = SEGMENT.check1 ? 5 : 4;
+  const unsigned idx = ((strip.now - SEGENV.step) / dur) % n;
+  SEGMENT.fill(cols[idx]);
+  return FRAMETIME;
+}
+static const char _data_FX_MODE_RGBW_TEST[] PROGMEM = "RGBW Test@Dauer pro Farbe,,,,,Alle 4 zusaetzlich;;;1;sx=128,o1=0";
+
 void WS2812FX::setupEffectData() {
   // Solid must be first! (assuming vector is empty upon call to setup)
   _mode.push_back(&mode_static);
@@ -8092,5 +8109,6 @@ void WS2812FX::setupEffectData() {
 #endif // WLED_DISABLE_2D
 
   addEffect(187, &mode_hoermann_boot, _data_FX_MODE_HOERMANN_BOOT); // Expodium custom
+  addEffect(188, &mode_rgbw_test, _data_FX_MODE_RGBW_TEST); // Expodium custom
 
 }
